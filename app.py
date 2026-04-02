@@ -12,7 +12,7 @@ def get_ai_insight(status, avg_demand, reorder_point, stock):
     else:
         return "Inventory levels are healthy. Maintain current planning strategy."
 
-uploaded_file = st.file_uploader("Upload inventory CSV", type=["csv"])\n
+uploaded_file = st.file_uploader("Upload inventory CSV", type=["csv"])
 if uploaded_file is not None:
     input_df = pd.read_csv(uploaded_file)
 else:
