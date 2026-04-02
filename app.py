@@ -12,12 +12,18 @@ def get_ai_insight(status, avg_demand, reorder_point, stock):
     else:
         return "Inventory levels are healthy. Maintain current planning strategy."
 
+# File upload
 uploaded_file = st.file_uploader("Upload inventory CSV", type=["csv"])
+
 if uploaded_file is not None:
     input_df = pd.read_csv(uploaded_file)
 else:
     input_df = pd.read_csv("inventory_data.csv")
 
+# ✅ Normalize column names (IMPORTANT)
+input_df.columns = input_df.columns.str.strip().str.lower().str.replace(" ", "_")
+
+# Service level selection
 service_level = st.selectbox(
     "Select Service Level",
     ["90%", "95%", "99%"],
@@ -30,11 +36,13 @@ elif service_level == "95%":
     Z = 1.65
 else:
     Z = 2.33
+
 results = []
 
+# Main calculation loop
 for _, row in input_df.iterrows():
-    sku = row["SKU"]
-    demand = [row["demand_1"], row["demand_2"], row["demand_3"], row["demand_4"]]
+    sku = row["sku"]
+    avg_demand = row["demand"]
     lead_time = row["lead_time"]
 
     stock = st.slider(
@@ -44,11 +52,8 @@ for _, row in input_df.iterrows():
         value=int(row["current_stock"])
     )
 
-    avg_demand = sum(demand) / len(demand)
-
-    mean = avg_demand
-    variance = sum((x - mean) ** 2 for x in demand) / len(demand)
-    std_dev = math.sqrt(variance)
+    # Assume demand variability (20%)
+    std_dev = avg_demand * 0.2
 
     safety_stock = Z * std_dev * math.sqrt(lead_time)
     reorder_point = avg_demand * lead_time + safety_stock
@@ -74,6 +79,7 @@ for _, row in input_df.iterrows():
 
 df = pd.DataFrame(results)
 
+# SKU filter
 selected_sku = st.selectbox("Select SKU", ["All"] + list(df["SKU"]))
 
 if selected_sku != "All":
@@ -81,7 +87,7 @@ if selected_sku != "All":
 else:
     filtered_df = df
 
-# ✅ ADD KPI METRICS HERE
+# KPI Metrics
 total_skus = len(filtered_df)
 stockout_count = len(filtered_df[filtered_df["Status"] == "🔴 Stockout Risk"])
 excess_count = len(filtered_df[filtered_df["Status"] == "🟡 Excess Inventory"])
@@ -92,28 +98,30 @@ col1.metric("Total SKUs", total_skus)
 col2.metric("Stockout Risk", stockout_count)
 col3.metric("Excess Inventory", excess_count)
 
-# 👇 existing table starts here
-
+# Table
 st.subheader("Inventory Insights")
 st.dataframe(filtered_df, use_container_width=True)
 
+# AI Recommendations
 st.subheader("Detailed AI Recommendations")
 for _, row in filtered_df.iterrows():
     st.markdown(f"### SKU {row['SKU']}")
     st.write(f"**Status:** {row['Status']}")
     st.write(f"**AI Insight:** {row['AI Insight']}")
 
+# Charts
 st.subheader("📊 Demand Overview")
 st.bar_chart(filtered_df.set_index("SKU")["Avg Demand"])
 
 st.subheader("📦 Stock vs Reorder Point")
-chart_df = filtered_df.set_index("SKU")["Stock", "Reorder Point"]
+chart_df = filtered_df.set_index("SKU")[["Stock", "Reorder Point"]]
 st.bar_chart(chart_df)
 
 st.subheader("🚨 Risk Status Count")
 status_count = filtered_df["Status"].value_counts()
 st.bar_chart(status_count)
 
+# Purchase Orders
 st.subheader("🧾 Auto Purchase Order Suggestions")
 
 po_results = []
@@ -136,6 +144,8 @@ if len(po_df) > 0:
     st.dataframe(po_df, use_container_width=True)
 else:
     st.write("No purchase orders needed right now.")
+
+# Download button
 if len(po_df) > 0:
     csv = po_df.to_csv(index=False).encode("utf-8")
 
